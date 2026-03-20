@@ -1,5 +1,8 @@
 This is online power-up/power down sequence diagram constructor. Its pretty basic, but get job done.
+There is no subscriprions, no ads.
+
 I`ve no idea in web programming so all code was written by Gemini.
+
 Link:
 
 https://lemon-zz.github.io/power_rails_sequence_gen/
