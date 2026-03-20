@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Power-Up Designer (Fixed Axis Break)</title>
+    <title>Power-Up Designer (Cumulative Logic Fix)</title>
     <style>
         :root { --bg: #121212; --panel: #1e1e1e; --accent: #00e676; --text: #cfd8dc; --break: #ff9800; }
         body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); margin: 0; display: flex; height: 100vh; overflow: hidden; }
@@ -12,9 +12,9 @@
         .item-card.break { border-left-color: var(--break); }
         label { display: block; font-size: 0.65rem; color: #888; margin-top: 10px; text-transform: uppercase; font-weight: bold; }
         input, select { background: #333; border: 1px solid #444; color: white; padding: 8px; border-radius: 4px; width: 100%; box-sizing: border-box; font-family: monospace; margin-top: 4px; }
-        .remove-btn { position: absolute; top: 10px; right: 10px; background: #444; color: #ff5252; border: none; cursor: pointer; width: 20px; height: 20px; border-radius: 50%; font-weight: bold; }
+        .remove-btn { position: absolute; top: 10px; right: 10px; background: #444; color: #ff5252; border: none; cursor: pointer; width: 22px; height: 22px; border-radius: 50%; font-weight: bold; }
         .main { flex-grow: 1; background: #0a0a0a; overflow: auto; }
-        #visualizer { min-width: 2000px; min-height: 1000px; }
+        #visualizer { min-width: 2500px; min-height: 1000px; }
         .btn-group { display: flex; gap: 8px; margin-top: 10px; }
         button { border: none; padding: 12px; border-radius: 4px; cursor: pointer; font-weight: bold; flex: 1; }
         .btn-rail { background: var(--accent); color: #000; }
@@ -39,7 +39,7 @@
 <script>
     let sequence = [
         { type: 'rail', id: 'r1', name: '12V_VIN', delay: 0, rise: 5, color: '#4fc3f7' },
-        { type: 'break', id: 'b1', duration: 300, visualWidth: 60 },
+        { type: 'break', id: 'b1', duration: 300, visualWidth: 80 },
         { type: 'rail', id: 'r2', name: '3V3_SYS', delay: 20, rise: 10, color: '#81c784' }
     ];
 
@@ -48,7 +48,7 @@
         if (type === 'rail') {
             sequence.push({ type: 'rail', id, name: 'NEW_RAIL', delay: 10, rise: 5, color: '#ba68c8' });
         } else {
-            sequence.push({ type: 'break', id, duration: 200, visualWidth: 60 });
+            sequence.push({ type: 'break', id, duration: 200, visualWidth: 80 });
         }
         updateUI();
     }
@@ -80,7 +80,7 @@
                 card.innerHTML = `<button class="remove-btn" onclick="removeItem('${item.id}')">✕</button>
                     <div style="font-weight:bold; color:var(--break); font-size:0.7rem">TIME BREAK (//)</div>
                     <div style="display:flex;gap:5px"><div style="flex:1"><label>Hidden (ms)</label><input type="number" value="${item.duration}" oninput="updateVal('${item.id}', 'duration', this.value)"></div>
-                    <div style="flex:1"><label>Width (px)</label><input type="number" value="${item.visualWidth}" oninput="updateVal('${item.id}', 'visualWidth', this.value)"></div></div>`;
+                    <div style="flex:1"><label>Visual Px</label><input type="number" value="${item.visualWidth}" oninput="updateVal('${item.id}', 'visualWidth', this.value)"></div></div>`;
             }
             list.appendChild(card);
         });
@@ -90,38 +90,41 @@
     function render() {
         const svg = document.getElementById('visualizer');
         const isBW = document.getElementById('datasheetMode').checked;
-        const colors = { bg: isBW?"#fff":"#0a0a0a", text: isBW?"#000":"#888", arrow: isBW?"#444":"#ffea00" };
+        const colors = { bg: isBW?"#fff":"#0a0a0a", text: isBW?"#333":"#888", arrow: isBW?"#444":"#ffea00" };
         svg.style.background = colors.bg;
         svg.innerHTML = '';
         
-        const SCALE = 5, LANE_H = 90, X_OFF = 150;
-        let cursorX = X_OFF;
-        const totalHeight = sequence.filter(i => i.type === 'rail').length * LANE_H + 200;
+        const SCALE = 5, LANE_H = 100, X_OFF = 160;
+        let visualCursorX = X_OFF; 
+        
+        // Dynamic Height based on rail count
+        const railCount = sequence.filter(i => i.type === 'rail').length;
+        const totalHeight = (railCount + 1) * LANE_H + 100;
         svg.setAttribute('height', totalHeight);
 
-        // First Pass: Calculate all Rail Coordinates based on sequence order
         let railIndex = 0;
         sequence.forEach((item) => {
             if (item.type === 'break') {
-                drawBreakLines(svg, cursorX, item.visualWidth, item.duration, totalHeight, colors.text, isBW);
-                cursorX += item.visualWidth;
+                // Draw Break centered in the width
+                drawBreakLines(svg, visualCursorX, item.visualWidth, item.duration, totalHeight, colors.text, isBW);
+                visualCursorX += item.visualWidth; // Shift drawing cursor
             } else {
                 const yBase = (railIndex + 1) * LANE_H + 50;
-                const rStart = cursorX + (item.delay * SCALE);
+                const rStart = visualCursorX + (item.delay * SCALE);
                 const rEnd = rStart + (item.rise * SCALE);
                 const stroke = isBW ? "#000" : item.color;
                 
-                // Signal line from diagram start to current start
+                // Draw the trace from absolute start (left) to current position
                 svg.innerHTML += `<path d="M ${X_OFF},${yBase} L ${rStart},${yBase} L ${rEnd},${yBase-40} L 2800,${yBase-40}" 
                                    fill="none" stroke="${stroke}" stroke-width="3" stroke-linecap="round" />`;
                 
-                // Label
-                svg.innerHTML += `<text x="10" y="${yBase-10}" fill="${stroke}" font-size="13" font-weight="bold">${item.name}</text>`;
+                // Rail Name
+                svg.innerHTML += `<text x="15" y="${yBase-10}" fill="${stroke}" font-size="14" font-weight="bold">${item.name}</text>`;
                 
-                // Timing Arrow
-                if (item.delay > 0) drawArrow(svg, cursorX, rStart, yBase-15, `${item.delay}ms`, colors.arrow);
+                // Arrow
+                if (item.delay > 0) drawArrow(svg, visualCursorX, rStart, yBase-15, `${item.delay}ms`, colors.arrow);
                 
-                cursorX = rEnd;
+                visualCursorX = rEnd; // Next item starts where this rise finished
                 railIndex++;
             }
         });
@@ -131,23 +134,28 @@
         const midX = x + (width / 2);
         const rectFill = isBW ? "#fff" : "#0a0a0a";
         
-        // Clear area for break
+        // 1. Cut a hole in the grid for the break
         svg.innerHTML += `<rect x="${x}" y="0" width="${width}" height="${height}" fill="${rectFill}" />`;
         
-        // Draw standard datasheet double-slash
-        for (let y = 0; y < height; y += 40) {
-            svg.innerHTML += `<path d="M ${midX-8} ${y+25} L ${midX+2} ${y+5} M ${midX} ${y+25} L ${midX+10} ${y+5}" 
-                               stroke="${color}" stroke-width="2" fill="none" />`;
+        // 2. Draw slashes with consistent spacing
+        for (let y = 10; y < height; y += 40) {
+            svg.innerHTML += `
+                <line x1="${midX-10}" y1="${y+20}" x2="${midX+5}" y2="${y}" stroke="${color}" stroke-width="2.5" />
+                <line x1="${midX-2}" y1="${y+20}" x2="${midX+13}" y2="${y}" stroke="${color}" stroke-width="2.5" />
+            `;
         }
         
-        // Duration text
-        svg.innerHTML += `<text x="${midX}" y="25" fill="${color}" font-size="11" text-anchor="middle" font-weight="bold" font-family="monospace">${ms}ms</text>`;
+        // 3. Duration text Label
+        svg.innerHTML += `
+            <rect x="${midX-30}" y="15" width="60" height="20" fill="${rectFill}" />
+            <text x="${midX}" y="30" fill="${color}" font-size="12" text-anchor="middle" font-weight="bold" font-family="monospace">${ms}ms</text>
+        `;
     }
 
     function drawArrow(svg, x1, x2, y, txt, col) {
         svg.innerHTML += `<line x1="${x1}" y1="${y}" x2="${x2}" y2="${y}" stroke="${col}" stroke-width="1.5" />
-            <path d="M${x1+5} ${y-4} L${x1} ${y} L${x1+5} ${y+4} M${x2-5} ${y-4} L${x2} ${y} L${x2-5} ${y+4}" fill="none" stroke="${col}" stroke-width="1.5"/>
-            <text x="${(x1+x2)/2}" y="${y-6}" fill="${col}" font-size="10" text-anchor="middle" font-weight="bold" font-family="monospace">${txt}</text>`;
+            <path d="M${x1+6} ${y-4} L${x1} ${y} L${x1+6} ${y+4} M${x2-6} ${y-4} L${x2} ${y} L${x2-6} ${y+4}" fill="none" stroke="${col}" stroke-width="1.5"/>
+            <text x="${(x1+x2)/2}" y="${y-8}" fill="${col}" font-size="11" text-anchor="middle" font-weight="bold" font-family="monospace">${txt}</text>`;
     }
 
     updateUI();
