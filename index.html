@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Power-Up Designer v3.4</title>
+    <title>Power-Up Designer v3.6</title>
     <style>
         :root { --bg: #121212; --panel: #1e1e1e; --accent: #00e676; --text: #cfd8dc; --break: #ff9800; }
         body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); margin: 0; display: flex; height: 100vh; overflow: hidden; }
@@ -43,7 +43,8 @@
     let sequence = [
         { type: 'rail', id: 'r1', name: '12V_VIN', delay: 0, rise: 5, color: '#4fc3f7', parentId: 'none' },
         { type: 'break', id: 'b1', duration: 300, visualWidth: 20 },
-        { type: 'rail', id: 'r2', name: '3V3_SYS', delay: 20, rise: 10, color: '#81c784', parentId: 'r1' }
+        { type: 'rail', id: 'r2', name: '3V3_SYS', delay: 20, rise: 10, color: '#81c784', parentId: 'r1' },
+        { type: 'rail', id: 'r3', name: '3V3_STBY', delay: 15, rise: 8, color: '#ffb74d', parentId: 'r2' }
     ];
 
     function addItem(type) {
@@ -103,7 +104,7 @@
     function render() {
         const svg = document.getElementById('visualizer');
         const isBW = document.getElementById('datasheetMode').checked;
-        const colors = { bg: isBW?"#fff":"#0a0a0a", text: isBW?"#333":"#888", arrow: isBW?"#444":"#ffea00", marker: isBW?"#666":"#ff5252" };
+        const colors = { bg: isBW?"#fff":"#0a0a0a", text: isBW?"#333":"#888", arrow: isBW?"#444":"#ffea00", marker: isBW?"#bbb":"#333", markerText: isBW?"#000":"#00e676" };
         svg.style.background = colors.bg;
         svg.innerHTML = '';
         
@@ -111,7 +112,6 @@
         let globalTimelineX = X_OFF;
         let railGeometries = {}; 
         let breakList = [];
-        let minX = Infinity, maxX = -Infinity;
 
         let railIndex = 0;
         sequence.forEach((item) => {
@@ -126,8 +126,6 @@
                 const end = start + (item.rise * SCALE);
                 
                 railGeometries[item.id] = { y, start, end, name: item.name, color: isBW ? "#000" : item.color, anchorX, delay: item.delay };
-                minX = Math.min(minX, start);
-                maxX = Math.max(maxX, end);
                 globalTimelineX = end;
                 railIndex++;
             }
@@ -136,7 +134,12 @@
         const totalHeight = (railIndex + 1) * LANE_H + 50;
         svg.setAttribute('height', totalHeight);
 
-        // Draw Traces
+        // 1. Draw Sequential Global Markers (T0, T1, T2...)
+        Object.values(railGeometries).forEach((g, i) => {
+            drawGlobalMarker(svg, g.start, totalHeight, `T${i}`, colors.marker, colors.markerText);
+        });
+
+        // 2. Draw Traces
         Object.values(railGeometries).forEach(g => {
             const path = `M ${X_OFF},${g.y} L ${g.start},${g.y} L ${g.end},${g.y-40} L 2800,${g.y-40}`;
             svg.innerHTML += `<path d="${path}" fill="none" stroke="${g.color}" stroke-width="3" stroke-linecap="round" />`;
@@ -144,19 +147,16 @@
             if (g.delay > 0) drawArrow(svg, g.anchorX, g.start, g.y-15, `${g.delay}ms`, colors.arrow);
         });
 
-        // Draw Breaks on Top (Masking)
+        // 3. Draw Breaks on Top (Masking)
         breakList.forEach(b => drawCurvyBreak(svg, b.x, b.width, b.ms, totalHeight, colors.text, colors.bg));
-
-        // Global T0 / T1 Markers (Dashed Vertical Lines)
-        if (railIndex > 0) {
-            drawGlobalMarker(svg, minX, totalHeight, "T0", colors.marker);
-            drawGlobalMarker(svg, maxX, totalHeight, "T1", colors.marker);
-        }
     }
 
-    function drawGlobalMarker(svg, x, h, label, col) {
-        svg.innerHTML += `<line x1="${x}" y1="30" x2="${x}" y2="${h}" stroke="${col}" stroke-width="1.5" stroke-dasharray="6,4" opacity="0.7" />`;
-        svg.innerHTML += `<text x="${x}" y="20" fill="${col}" font-size="12" font-weight="bold" text-anchor="middle">${label}</text>`;
+    function drawGlobalMarker(svg, x, h, label, col, txtCol) {
+        svg.innerHTML += `<line x1="${x}" y1="40" x2="${x}" y2="${h - 20}" stroke="${col}" stroke-width="1" stroke-dasharray="4,4" />`;
+        // Top Label with background shield
+        svg.innerHTML += `<text x="${x}" y="30" fill="${txtCol}" font-size="11" font-weight="bold" font-family="monospace" text-anchor="middle">${label}</text>`;
+        // Bottom Label
+        svg.innerHTML += `<text x="${x}" y="${h - 5}" fill="${txtCol}" font-size="11" font-weight="bold" font-family="monospace" text-anchor="middle">${label}</text>`;
     }
 
     function drawCurvyBreak(svg, x, width, ms, height, color, bg) {
