@@ -44,73 +44,69 @@
             </svg>
     </div>
 </div>
+function render() {
+    const svg = document.getElementById('svgRender');
+    svg.innerHTML = ''; 
+    
+    const names = document.querySelectorAll('.name');
+    const delays = document.querySelectorAll('.delay');
+    const rises = document.querySelectorAll('.rise');
+    
+    const SCALE_X = 5; 
+    const LANE_HEIGHT = 70;
+    const SIGNAL_HEIGHT = 30;
+    const X_START = 120;
+    
+    let cumulativeTime = 0; 
+    let lastStableX = X_START; // Tracks when the previous rail finished rising
 
-<script>
-    function addRail() {
-        const div = document.createElement('div');
-        div.className = 'rail-input';
-        div.innerHTML = `
-            <input type="text" value="NEW_RAIL" class="name" oninput="render()"><br>
-            <label>Delay (ms)</label><input type="number" value="10" class="delay" oninput="render()"><br>
-            <label>Rise (ms)</label><input type="number" value="5" class="rise" oninput="render()">
-        `;
-        document.getElementById('inputs').appendChild(div);
-        render();
-    }
-
-    function render() {
-        const svg = document.getElementById('svgRender');
-        svg.innerHTML = ''; // Clear previous
+    names.forEach((n, i) => {
+        const d = parseFloat(delays[i].value) || 0;
+        const r = parseFloat(rises[i].value) || 0;
+        const yBase = (i + 1) * LANE_HEIGHT + 20;
+        const yHigh = yBase - SIGNAL_HEIGHT;
         
-        const names = document.querySelectorAll('.name');
-        const delays = document.querySelectorAll('.delay');
-        const rises = document.querySelectorAll('.rise');
+        const delayPx = d * SCALE_X;
+        const risePx = r * SCALE_X;
         
-        const SCALE_X = 5; // 1ms = 5px
-        const LANE_HEIGHT = 60;
-        const SIGNAL_HEIGHT = 30;
-        let cumulativeTime = 20; // Initial margin
+        const riseStartX = lastStableX + delayPx;
+        const riseEndX = riseStartX + risePx;
 
-        // Draw vertical grid lines every 50ms
-        for(let g = 0; g < 1000; g += 50) {
-            let x = g * SCALE_X + 100;
-            svg.innerHTML += `<line x1="${x}" y1="0" x2="${x}" y2="500" class="grid-line" />`;
-            svg.innerHTML += `<text x="${x}" y="15" fill="#333" font-size="10">${g}ms</text>`;
+        // 1. Draw Timing Arrow (if not the first rail and delay > 0)
+        if (i > 0 && d > 0) {
+            const arrowY = yBase - (LANE_HEIGHT / 2);
+            drawArrow(svg, lastStableX, riseStartX, arrowY, `${d}ms`);
+            
+            // Draw vertical reference dashed lines
+            svg.innerHTML += `<line x1="${lastStableX}" y1="${yBase - LANE_HEIGHT}" x2="${lastStableX}" y2="${yBase}" stroke="#444" stroke-dasharray="4"/>`;
+            svg.innerHTML += `<line x1="${riseStartX}" y1="${yBase - LANE_HEIGHT}" x2="${riseStartX}" y2="${yBase}" stroke="#444" stroke-dasharray="4"/>`;
         }
 
-        names.forEach((n, i) => {
-            const d = parseFloat(delays[i].value) || 0;
-            const r = parseFloat(rises[i].value) || 0;
-            const yBase = (i + 1) * LANE_HEIGHT;
-            const yHigh = yBase - SIGNAL_HEIGHT;
+        // 2. Define Signal Path
+        const color = `hsl(${(i * 50) % 360}, 70%, 60%)`;
+        const pathData = `M ${X_START},${yBase} L ${riseStartX},${yBase} L ${riseEndX},${yHigh} L 950,${yHigh}`;
+
+        svg.innerHTML += `
+            <text x="10" y="${yBase - 5}" class="rail-label" fill="${color}">${n.value}</text>
+            <path d="${pathData}" class="rail-line" stroke="${color}" fill="none" />
+        `;
+
+        lastStableX = riseEndX; 
+    });
+}
+
+function drawArrow(svg, x1, x2, y, label) {
+    const arrowColor = "#ffcc00";
+    // Double-headed arrow line
+    svg.innerHTML += `
+        <line x1="${x1+2}" y1="${y}" x2="${x2-2}" y2="${y}" stroke="${arrowColor}" stroke-width="1.5" />
+        <path d="M ${x1+5} ${y-4} L ${x1} ${y} L ${x1+5} ${y+4}" fill="none" stroke="${arrowColor}" />
+        <path d="M ${x2-5} ${y-4} L ${x2} ${y} L ${x2-5} ${y+4}" fill="none" stroke="${arrowColor}" />
+        <text x="${(x1 + x2) / 2}" y="${y - 7}" fill="${arrowColor}" font-size="11" text-anchor="middle">${label}</text>
+    `;
+}
             
-            cumulativeTime += d;
-            
-            const startX = 100; // Start of the timeline
-            const riseStartX = startX + (cumulativeTime * SCALE_X);
-            const riseEndX = riseStartX + (r * SCALE_X);
-            const fullEndX = 950;
-
-            // Define the signal path: Low -> Ramp Up -> High
-            const pathData = `
-                M ${startX},${yBase} 
-                L ${riseStartX},${yBase} 
-                L ${riseEndX},${yHigh} 
-                L ${fullEndX},${yHigh}
-            `;
-
-            // Draw the line
-            const color = `hsl(${(i * 40) % 360}, 70%, 60%)`;
-            svg.innerHTML += `
-                <text x="10" y="${yBase - 10}" class="rail-label">${n.value}</text>
-                <path d="${pathData}" class="rail-line" stroke="${color}" />
-            `;
-
-            cumulativeTime += r; // Sequence next rail after this one rises
-        });
-    }
-
-    render(); // Initial call
+render(); // Initial call
 </script>
 </body>
-</html>
+</html>            
