@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Power-Up Designer v3.3</title>
+    <title>Power-Up Designer v3.4</title>
     <style>
         :root { --bg: #121212; --panel: #1e1e1e; --accent: #00e676; --text: #cfd8dc; --break: #ff9800; }
         body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); margin: 0; display: flex; height: 100vh; overflow: hidden; }
@@ -65,11 +65,7 @@
         const item = sequence.find(i => i.id === id);
         if (item) {
             item[key] = (typeof item[key] === 'string') ? val : (parseFloat(val) || 0);
-            if (needsUIUpdate) {
-                updateUI(); // Only recreate the sidebar if structure/parents change
-            } else {
-                render(); // Just update the SVG
-            }
+            if (needsUIUpdate) updateUI(); else render();
         }
     }
 
@@ -77,24 +73,19 @@
         const list = document.getElementById('itemList');
         list.innerHTML = '';
         const railOptions = sequence.filter(i => i.type === 'rail');
-
         sequence.forEach(item => {
             const card = document.createElement('div');
             card.className = `item-card ${item.type}`;
             if (item.type === 'rail') {
                 let options = `<option value="none">None (Start 0)</option>`;
-                railOptions.forEach(r => {
-                    if (r.id !== item.id) options += `<option value="${r.id}" ${item.parentId === r.id ? 'selected' : ''}>${r.name}</option>`;
-                });
-
+                railOptions.forEach(r => { if (r.id !== item.id) options += `<option value="${r.id}" ${item.parentId === r.id ? 'selected' : ''}>${r.name}</option>`; });
                 card.innerHTML = `<button class="remove-btn" onclick="removeItem('${item.id}')">✕</button>
                     <input type="text" value="${item.name}" oninput="updateVal('${item.id}', 'name', this.value)">
                     <div style="display:flex;gap:5px">
                         <div style="flex:1"><label>Delay</label><input type="number" value="${item.delay}" oninput="updateVal('${item.id}', 'delay', this.value)"></div>
                         <div style="flex:1"><label>Rise</label><input type="number" value="${item.rise}" oninput="updateVal('${item.id}', 'rise', this.value)"></div>
                     </div>
-                    <label>Parent Rail</label>
-                    <select onchange="updateVal('${item.id}', 'parentId', this.value, true)">${options}</select>
+                    <label>Parent Rail</label><select onchange="updateVal('${item.id}', 'parentId', this.value, true)">${options}</select>
                     <label>Color</label><input type="color" value="${item.color}" oninput="updateVal('${item.id}', 'color', this.value)">`;
             } else {
                 card.innerHTML = `<button class="remove-btn" onclick="removeItem('${item.id}')">✕</button>
@@ -112,7 +103,7 @@
     function render() {
         const svg = document.getElementById('visualizer');
         const isBW = document.getElementById('datasheetMode').checked;
-        const colors = { bg: isBW?"#fff":"#0a0a0a", text: isBW?"#333":"#888", arrow: isBW?"#444":"#ffea00" };
+        const colors = { bg: isBW?"#fff":"#0a0a0a", text: isBW?"#333":"#888", arrow: isBW?"#444":"#ffea00", marker: isBW?"#666":"#ff5252" };
         svg.style.background = colors.bg;
         svg.innerHTML = '';
         
@@ -120,6 +111,7 @@
         let globalTimelineX = X_OFF;
         let railGeometries = {}; 
         let breakList = [];
+        let minX = Infinity, maxX = -Infinity;
 
         let railIndex = 0;
         sequence.forEach((item) => {
@@ -129,13 +121,13 @@
             } else {
                 const y = (railIndex + 1) * LANE_H + 50;
                 let anchorX = globalTimelineX;
-                if (item.parentId !== 'none' && railGeometries[item.parentId]) {
-                    anchorX = railGeometries[item.parentId].end;
-                }
+                if (item.parentId !== 'none' && railGeometries[item.parentId]) anchorX = railGeometries[item.parentId].end;
                 const start = anchorX + (item.delay * SCALE);
                 const end = start + (item.rise * SCALE);
                 
                 railGeometries[item.id] = { y, start, end, name: item.name, color: isBW ? "#000" : item.color, anchorX, delay: item.delay };
+                minX = Math.min(minX, start);
+                maxX = Math.max(maxX, end);
                 globalTimelineX = end;
                 railIndex++;
             }
@@ -144,16 +136,27 @@
         const totalHeight = (railIndex + 1) * LANE_H + 50;
         svg.setAttribute('height', totalHeight);
 
+        // Draw Traces
         Object.values(railGeometries).forEach(g => {
             const path = `M ${X_OFF},${g.y} L ${g.start},${g.y} L ${g.end},${g.y-40} L 2800,${g.y-40}`;
             svg.innerHTML += `<path d="${path}" fill="none" stroke="${g.color}" stroke-width="3" stroke-linecap="round" />`;
             svg.innerHTML += `<text x="15" y="${g.y-10}" fill="${g.color}" font-size="14" font-weight="bold">${g.name}</text>`;
-            svg.innerHTML += `<text x="${g.start}" y="${g.y + 15}" fill="${colors.text}" font-size="10" text-anchor="middle">T0</text>`;
-            svg.innerHTML += `<text x="${g.end}" y="${g.y - 45}" fill="${colors.text}" font-size="10" text-anchor="middle">T1</text>`;
             if (g.delay > 0) drawArrow(svg, g.anchorX, g.start, g.y-15, `${g.delay}ms`, colors.arrow);
         });
 
+        // Draw Breaks on Top (Masking)
         breakList.forEach(b => drawCurvyBreak(svg, b.x, b.width, b.ms, totalHeight, colors.text, colors.bg));
+
+        // Global T0 / T1 Markers (Dashed Vertical Lines)
+        if (railIndex > 0) {
+            drawGlobalMarker(svg, minX, totalHeight, "T0", colors.marker);
+            drawGlobalMarker(svg, maxX, totalHeight, "T1", colors.marker);
+        }
+    }
+
+    function drawGlobalMarker(svg, x, h, label, col) {
+        svg.innerHTML += `<line x1="${x}" y1="30" x2="${x}" y2="${h}" stroke="${col}" stroke-width="1.5" stroke-dasharray="6,4" opacity="0.7" />`;
+        svg.innerHTML += `<text x="${x}" y="20" fill="${col}" font-size="12" font-weight="bold" text-anchor="middle">${label}</text>`;
     }
 
     function drawCurvyBreak(svg, x, width, ms, height, color, bg) {
@@ -165,11 +168,10 @@
             for (let y = 0; y < height; y += 100) d += ` C ${off + curve} ${y + 25}, ${off - curve} ${y + 75}, ${off} ${y + 100}`;
             return d;
         };
-        svg.innerHTML += `<path d="${p(midX-gap)}" stroke="${color}" stroke-width="2" fill="none" />`;
-        svg.innerHTML += `<path d="${p(midX+gap)}" stroke="${color}" stroke-width="2" fill="none" />`;
-        svg.innerHTML += `
-            <rect x="${midX - 35}" y="15" width="70" height="20" fill="${bg}" rx="4" />
-            <text x="${midX}" y="30" fill="${color}" font-size="13" font-weight="bold" text-anchor="middle" font-family="monospace">${ms}ms</text>`;
+        svg.innerHTML += `<path d="${p(midX-gap)}" stroke="${color}" stroke-width="2" fill="none" />
+                          <path d="${p(midX+gap)}" stroke="${color}" stroke-width="2" fill="none" />
+                          <rect x="${midX - 35}" y="35" width="70" height="20" fill="${bg}" rx="4" />
+                          <text x="${midX}" y="50" fill="${color}" font-size="13" font-weight="bold" text-anchor="middle" font-family="monospace">${ms}ms</text>`;
     }
 
     function drawArrow(svg, x1, x2, y, txt, col) {
