@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Power-Up Designer v3.7</title>
+    <title>Power-Up Designer v3.8</title>
     <style>
         :root { --bg: #121212; --panel: #1e1e1e; --accent: #00e676; --text: #cfd8dc; --break: #ff9800; }
         body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); margin: 0; display: flex; height: 100vh; overflow: hidden; }
@@ -15,10 +15,11 @@
         .remove-btn { position: absolute; top: 10px; right: 10px; background: #444; color: #ff5252; border: none; cursor: pointer; width: 22px; height: 22px; border-radius: 50%; font-weight: bold; }
         .main { flex-grow: 1; background: #0a0a0a; overflow: auto; }
         #visualizer { min-width: 3000px; }
-        .btn-group { display: flex; gap: 8px; margin-top: 10px; position: sticky; bottom: 0; background: var(--panel); padding-top: 10px; }
-        button { border: none; padding: 12px; border-radius: 4px; cursor: pointer; font-weight: bold; flex: 1; }
+        .btn-group { display: flex; gap: 8px; margin-top: 10px; position: sticky; bottom: 0; background: var(--panel); padding-top: 10px; flex-wrap: wrap; }
+        button { border: none; padding: 12px; border-radius: 4px; cursor: pointer; font-weight: bold; flex: 1 1 45%; }
         .btn-rail { background: var(--accent); color: #000; }
         .btn-break { background: var(--break); color: #000; }
+        .btn-export { background: #2196f3; color: white; flex: 1 1 100%; margin-top: 10px; }
         .toggle-container { background: #2d2d2d; padding: 12px; border-radius: 6px; margin-bottom: 20px; border: 1px solid #444; display: flex; align-items: center; gap: 12px; font-size: 0.8rem; cursor: pointer; }
     </style>
 </head>
@@ -34,17 +35,17 @@
     <div class="btn-group">
         <button class="btn-rail" onclick="addItem('rail')">+ RAIL</button>
         <button class="btn-break" onclick="addItem('break')">+ BREAK</button>
+        <button class="btn-export" onclick="exportSVG()">💾 EXPORT TO SVG</button>
     </div>
 </div>
 
-<div class="main"><svg id="visualizer" width="3000" height="1000"></svg></div>
+<div class="main"><svg id="visualizer" xmlns="http://www.w3.org/2000/svg" width="3000" height="1000"></svg></div>
 
 <script>
     let sequence = [
         { type: 'rail', id: 'r1', name: '12V_VIN', delay: 0, rise: 5, color: '#4fc3f7', parentId: 'none' },
         { type: 'break', id: 'b1', duration: 300, visualWidth: 20 },
-        { type: 'rail', id: 'r2', name: '3V3_SYS', delay: 20, rise: 10, color: '#81c784', parentId: 'r1' },
-        { type: 'rail', id: 'r3', name: '3V3_STBY', delay: 15, rise: 8, color: '#ffb74d', parentId: 'r2' }
+        { type: 'rail', id: 'r2', name: '3V3_SYS', delay: 20, rise: 10, color: '#81c784', parentId: 'r1' }
     ];
 
     function addItem(type) {
@@ -134,33 +135,26 @@
         const totalHeight = (railIndex + 1) * LANE_H + 50;
         svg.setAttribute('height', totalHeight);
 
-        // 1. Global Markers
         Object.values(railGeometries).forEach((g, i) => drawGlobalMarker(svg, g.start, totalHeight, `T${i}`, colors.marker, colors.markerText));
 
-        // 2. Traces & Parent Links
         Object.values(railGeometries).forEach(g => {
-            // Trace
             const path = `M ${X_OFF},${g.y} L ${g.start},${g.y} L ${g.end},${g.y-40} L 2800,${g.y-40}`;
             svg.innerHTML += `<path d="${path}" fill="none" stroke="${g.color}" stroke-width="3" stroke-linecap="round" />`;
-            svg.innerHTML += `<text x="15" y="${g.y-10}" fill="${g.color}" font-size="14" font-weight="bold">${g.name}</text>`;
-            
-            // Parent Line: Dashed vertical from Parent End to Child Anchor (Arrow Start)
+            svg.innerHTML += `<text x="15" y="${g.y-10}" fill="${g.color}" font-size="14" font-weight="bold" font-family="Arial">${g.name}</text>`;
             if (g.parentId !== 'none' && railGeometries[g.parentId]) {
                 const parent = railGeometries[g.parentId];
-                svg.innerHTML += `<line x1="${g.anchorX}" y1="${parent.y - 40}" x2="${g.anchorX}" y2="${g.y - 15}" stroke="${colors.arrow}" stroke-width="1" stroke-dasharray="3,3" opacity="0.6" />`;
+                svg.innerHTML += `<line x1="${g.anchorX}" y1="${parent.y - 40}" x2="${g.anchorX}" y2="${g.y - 15}" stroke="${colors.arrow}" stroke-width="1" stroke-dasharray="3,3" />`;
             }
-
             if (g.delay > 0) drawArrow(svg, g.anchorX, g.start, g.y-15, `${g.delay}ms`, colors.arrow);
         });
 
-        // 3. Breaks
         breakList.forEach(b => drawCurvyBreak(svg, b.x, b.width, b.ms, totalHeight, colors.text, colors.bg));
     }
 
     function drawGlobalMarker(svg, x, h, label, col, txtCol) {
         svg.innerHTML += `<line x1="${x}" y1="40" x2="${x}" y2="${h - 20}" stroke="${col}" stroke-width="1" stroke-dasharray="4,4" />`;
-        svg.innerHTML += `<text x="${x}" y="30" fill="${txtCol}" font-size="11" font-weight="bold" text-anchor="middle">${label}</text>`;
-        svg.innerHTML += `<text x="${x}" y="${h - 5}" fill="${txtCol}" font-size="11" font-weight="bold" text-anchor="middle">${label}</text>`;
+        svg.innerHTML += `<text x="${x}" y="30" fill="${txtCol}" font-size="11" font-weight="bold" font-family="monospace" text-anchor="middle">${label}</text>`;
+        svg.innerHTML += `<text x="${x}" y="${h - 5}" fill="${txtCol}" font-size="11" font-weight="bold" font-family="monospace" text-anchor="middle">${label}</text>`;
     }
 
     function drawCurvyBreak(svg, x, width, ms, height, color, bg) {
@@ -182,6 +176,18 @@
         svg.innerHTML += `<line x1="${x1}" y1="${y}" x2="${x2}" y2="${y}" stroke="${col}" stroke-width="1.5" />
             <path d="M${x1+6} ${y-4} L${x1} ${y} L${x1+6} ${y+4} M${x2-6} ${y-4} L${x2} ${y} L${x2-6} ${y+4}" fill="none" stroke="${col}" />
             <text x="${(x1+x2)/2}" y="${y-8}" fill="${col}" font-size="11" text-anchor="middle" font-weight="bold" font-family="monospace">${txt}</text>`;
+    }
+
+    function exportSVG() {
+        const svgData = document.getElementById('visualizer').outerHTML;
+        const svgBlob = new Blob([svgData], {type: "image/svg+xml;charset=utf-8"});
+        const svgUrl = URL.createObjectURL(svgBlob);
+        const downloadLink = document.createElement("a");
+        downloadLink.href = svgUrl;
+        downloadLink.download = "power_sequence_export.svg";
+        document.body.appendChild(downloadLink);
+        downloadLink.click();
+        document.body.removeChild(downloadLink);
     }
 
     updateUI();
