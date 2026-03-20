@@ -118,4 +118,51 @@
                                    fill="none" stroke="${stroke}" stroke-width="3" stroke-linecap="round" />`;
                 
                 svg.innerHTML += `<text x="15" y="${yBase-10}" fill="${stroke}" font-size="14" font-weight="bold">${item.name}</text>`;
-                if (item.delay
+                if (item.delay > 0) drawArrow(svg, globalX, rStart, yBase-15, `${item.delay}ms`, colors.arrow);
+                
+                globalX = rEnd; 
+                railIndex++;
+            }
+        });
+    }
+
+    function drawCurvyBreak(svg, x, width, ms, height, color, isBW) {
+        const midX = x + (width / 2);
+        const rectFill = isBW ? "#fff" : "#0a0a0a";
+        const curveOffset = 15; // Width of the curve swing
+        const gap = 8; // Gap between the two curves
+
+        // Clear background
+        svg.innerHTML += `<rect x="${x}" y="0" width="${width}" height="${height}" fill="${rectFill}" />`;
+
+        // Generate Path for one curvy line
+        // We use M (move), and C (cubic bezier) to create the snake look
+        const createCurvePath = (offsetX) => {
+            let path = `M ${offsetX} 0`;
+            for (let y = 0; y < height; y += 100) {
+                path += ` C ${offsetX + curveOffset} ${y + 25}, ${offsetX - curveOffset} ${y + 75}, ${offsetX} ${y + 100}`;
+            }
+            return path;
+        };
+
+        // Draw the two parallel curves
+        svg.innerHTML += `<path d="${createCurvePath(midX - gap)}" stroke="${color}" stroke-width="2.5" fill="none" />`;
+        svg.innerHTML += `<path d="${createCurvePath(midX + gap)}" stroke="${color}" stroke-width="2.5" fill="none" />`;
+
+        // Label
+        svg.innerHTML += `
+            <rect x="${midX-35}" y="12" width="70" height="22" fill="${rectFill}" />
+            <text x="${midX}" y="28" fill="${color}" font-size="12" text-anchor="middle" font-weight="bold" font-family="monospace">${ms}ms</text>
+        `;
+    }
+
+    function drawArrow(svg, x1, x2, y, txt, col) {
+        svg.innerHTML += `<line x1="${x1}" y1="${y}" x2="${x2}" y2="${y}" stroke="${col}" stroke-width="1.5" />
+            <path d="M${x1+6} ${y-4} L${x1} ${y} L${x1+6} ${y+4} M${x2-6} ${y-4} L${x2} ${y} L${x2-6} ${y+4}" fill="none" stroke="${col}" stroke-width="1.5"/>
+            <text x="${(x1+x2)/2}" y="${y-8}" fill="${col}" font-size="11" text-anchor="middle" font-weight="bold" font-family="monospace">${txt}</text>`;
+    }
+
+    updateUI();
+</script>
+</body>
+</html>
