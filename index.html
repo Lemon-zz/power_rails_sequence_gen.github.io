@@ -6,45 +6,46 @@
     <title>Power-Up Sequence Designer</title>
     <style>
         :root { --bg: #121212; --panel: #1e1e1e; --accent: #00e676; --text: #cfd8dc; }
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg); color: var(--text); margin: 0; display: flex; height: 100vh; overflow: hidden; }
+        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); margin: 0; display: flex; height: 100vh; overflow: hidden; }
         
-        /* Sidebar Controls */
         .sidebar { width: 400px; background: var(--panel); border-right: 1px solid #333; display: flex; flex-direction: column; padding: 20px; box-sizing: border-box; overflow-y: auto; }
-        h2 { color: var(--accent); font-size: 1.2rem; margin-top: 0; letter-spacing: 1px; border-bottom: 1px solid #333; padding-bottom: 10px; }
+        h2 { color: var(--accent); font-size: 1.1rem; margin-top: 0; border-bottom: 1px solid #333; padding-bottom: 10px; }
         
         .rail-card { background: #252525; border-radius: 6px; padding: 12px; margin-bottom: 15px; border-left: 4px solid var(--accent); position: relative; }
-        .rail-card label { display: block; font-size: 0.75rem; color: #888; margin-top: 8px; text-transform: uppercase; }
-        input, select { background: #333; border: 1px solid #444; color: white; padding: 6px; border-radius: 4px; width: 100%; box-sizing: border-box; font-family: monospace; }
-        .row { display: flex; gap: 10px; }
+        label { display: block; font-size: 0.7rem; color: #888; margin-top: 8px; text-transform: uppercase; font-weight: bold; }
+        input, select { background: #333; border: 1px solid #444; color: white; padding: 6px; border-radius: 4px; width: 100%; box-sizing: border-box; font-family: monospace; margin-top: 2px; }
         
-        /* Main Viewer */
-        .main { flex-grow: 1; display: flex; flex-direction: column; background: #0a0a0a; position: relative; overflow: hidden; }
-        #canvas-container { flex-grow: 1; overflow: auto; cursor: crosshair; }
-        svg { background-image: radial-gradient(#222 1px, transparent 1px); background-size: 20px 20px; min-width: 1500px; }
+        .main { flex-grow: 1; display: flex; flex-direction: column; background: #0a0a0a; position: relative; overflow: auto; }
+        #visualizer { min-width: 1200px; min-height: 800px; transition: background 0.3s; }
         
+        /* Datasheet Mode Toggle */
+        .toggle-container { background: #2d2d2d; padding: 10px; border-radius: 4px; margin-bottom: 15px; border: 1px solid #444; display: flex; align-items: center; gap: 10px; cursor: pointer; }
+        .toggle-container input { width: auto; }
+
         button { background: var(--accent); color: #000; border: none; padding: 10px; border-radius: 4px; cursor: pointer; font-weight: bold; margin-top: 10px; }
-        button.secondary { background: #444; color: #fff; margin-top: 5px; }
-        .remove-btn { position: absolute; top: 5px; right: 5px; background: none; color: #ff5252; font-size: 18px; padding: 0; }
+        button.secondary { background: #444; color: #fff; }
+        .remove-btn { position: absolute; top: 5px; right: 5px; background: none; color: #ff5252; border:none; cursor:pointer; font-size: 18px; }
     </style>
 </head>
 <body>
 
 <div class="sidebar">
     <h2>[ SEQUENCE_EDITOR ]</h2>
-    <div id="railList">
-        </div>
+    
+    <label class="toggle-container">
+        <input type="checkbox" id="datasheetMode" onchange="render()"> 
+        <span>DATASHEET MODE (B&W)</span>
+    </label>
+
+    <div id="railList"></div>
+    
     <button onclick="addRail()">+ ADD VOLTAGE RAIL</button>
     <button class="secondary" onclick="exportSVG()">DOWNLOAD SVG</button>
-    <div style="margin-top: 20px; font-size: 11px; color: #666;">
-        TIP: Use 'Parent' to link a rail's start to another rail's stable point.
-    </div>
 </div>
 
 <div class="main">
-    <div id="canvas-container">
-        <svg id="visualizer" width="2000" height="800">
-            </svg>
-    </div>
+    <svg id="visualizer" width="2000" height="800">
+        </svg>
 </div>
 
 <script>
@@ -56,7 +57,8 @@
 
     function addRail() {
         const id = 'r' + Math.random().toString(36).substr(2, 5);
-        rails.push({ id, name: 'NEW_RAIL', delay: 10, rise: 5, parent: rails[rails.length-1].id, color: '#ba68c8' });
+        const lastId = rails.length > 0 ? rails[rails.length-1].id : 'none';
+        rails.push({ id, name: 'NEW_RAIL', delay: 10, rise: 5, parent: lastId, color: '#ba68c8' });
         updateUI();
     }
 
@@ -68,7 +70,7 @@
     function updateParam(id, key, value) {
         const rail = rails.find(r => r.id === id);
         if (rail) {
-            rail[key] = key === 'name' || key === 'parent' || key === 'color' ? value : parseFloat(value) || 0;
+            rail[key] = (key === 'name' || key === 'parent' || key === 'color') ? value : (parseFloat(value) || 0);
             render();
         }
     }
@@ -76,36 +78,22 @@
     function updateUI() {
         const list = document.getElementById('railList');
         list.innerHTML = '';
-        
-        rails.forEach((rail, index) => {
+        rails.forEach((rail) => {
             const card = document.createElement('div');
             card.className = 'rail-card';
             card.style.borderLeftColor = rail.color;
-            
             let parentOptions = `<option value="none">None (Start 0)</option>`;
-            rails.forEach(r => {
-                if(r.id !== rail.id) {
-                    parentOptions += `<option value="${r.id}" ${rail.parent === r.id ? 'selected' : ''}>${r.name}</option>`;
-                }
-            });
+            rails.forEach(r => { if(r.id !== rail.id) parentOptions += `<option value="${r.id}" ${rail.parent === r.id ? 'selected' : ''}>${r.name}</option>`; });
 
             card.innerHTML = `
                 <button class="remove-btn" onclick="removeRail('${rail.id}')">×</button>
-                <input type="text" value="${rail.name}" class="name" oninput="updateParam('${rail.id}', 'name', this.value)">
-                <div class="row">
-                    <div style="flex:1">
-                        <label>Delay (ms)</label>
-                        <input type="number" value="${rail.delay}" oninput="updateParam('${rail.id}', 'delay', this.value)">
-                    </div>
-                    <div style="flex:1">
-                        <label>Rise (ms)</label>
-                        <input type="number" value="${rail.rise}" oninput="updateParam('${rail.id}', 'rise', this.value)">
-                    </div>
+                <input type="text" value="${rail.name}" oninput="updateParam('${rail.id}', 'name', this.value)">
+                <div style="display:flex; gap:10px;">
+                    <div style="flex:1"><label>Delay (ms)</label><input type="number" value="${rail.delay}" oninput="updateParam('${rail.id}', 'delay', this.value)"></div>
+                    <div style="flex:1"><label>Rise (ms)</label><input type="number" value="${rail.rise}" oninput="updateParam('${rail.id}', 'rise', this.value)"></div>
                 </div>
-                <label>Dependency (Starts after...)</label>
-                <select onchange="updateParam('${rail.id}', 'parent', this.value)">${parentOptions}</select>
-                <label>Color</label>
-                <input type="color" value="${rail.color}" oninput="updateParam('${rail.id}', 'color', this.value)">
+                <label>Parent</label><select onchange="updateParam('${rail.id}', 'parent', this.value)">${parentOptions}</select>
+                <label>Color</label><input type="color" value="${rail.color}" oninput="updateParam('${rail.id}', 'color', this.value)">
             `;
             list.appendChild(card);
         });
@@ -114,73 +102,81 @@
 
     function render() {
         const svg = document.getElementById('visualizer');
+        const isBW = document.getElementById('datasheetMode').checked;
+        
+        // Colors based on mode
+        const bgColor = isBW ? "#ffffff" : "#0a0a0a";
+        const gridColor = isBW ? "#eeeeee" : "#222222";
+        const textColor = isBW ? "#000000" : "#888888";
+        const arrowColor = isBW ? "#333333" : "#ffea00";
+
+        svg.style.background = bgColor;
         svg.innerHTML = '';
+        
         const SCALE_X = 5; 
         const LANE_H = 80;
-        const SIG_H = 30;
+        const SIG_H = 35;
         const X_OFF = 150;
+        const railPos = {};
 
-        // Draw Time Grid
+        // Grid
         for(let t=0; t<2000; t+=50) {
             let x = t * SCALE_X + X_OFF;
-            svg.innerHTML += `<line x1="${x}" y1="0" x2="${x}" y2="100%" stroke="#222" />`;
-            svg.innerHTML += `<text x="${x}" y="20" fill="#444" font-size="10" text-anchor="middle">${t}ms</text>`;
+            svg.innerHTML += `<line x1="${x}" y1="0" x2="${x}" y2="100%" stroke="${gridColor}" stroke-width="1" />`;
+            if (t % 100 === 0) svg.innerHTML += `<text x="${x}" y="15" fill="${textColor}" font-size="10" text-anchor="middle">${t}ms</text>`;
         }
 
-        const railPositions = {}; // Store stableX for dependencies
-
         rails.forEach((rail, i) => {
-            const yBase = (i + 1) * LANE_H + 50;
+            const yBase = (i + 1) * LANE_H + 40;
             const yHigh = yBase - SIG_H;
-            
-            // Calculate start point based on parent
             let startX = X_OFF;
-            if (rail.parent !== 'none' && railPositions[rail.parent]) {
-                startX = railPositions[rail.parent].stableX;
-            }
+            if (rail.parent !== 'none' && railPos[rail.parent]) startX = railPos[rail.parent].stableX;
 
-            const riseStartX = startX + (rail.delay * SCALE_X);
-            const riseEndX = riseStartX + (rail.rise * SCALE_X);
-            railPositions[rail.id] = { stableX: riseEndX, y: yBase };
+            const rStart = startX + (rail.delay * SCALE_X);
+            const rEnd = rStart + (rail.rise * SCALE_X);
+            railPos[rail.id] = { stableX: rEnd, y: yBase };
 
-            // Draw Timing Arrow
+            // Arrows & Dashed Lines
             if (rail.parent !== 'none' && rail.delay > 0) {
-                const parentY = railPositions[rail.parent].y;
-                drawArrow(svg, startX, riseStartX, yBase - 15, `${rail.delay}ms`);
-                svg.innerHTML += `<line x1="${startX}" y1="${parentY}" x2="${startX}" y2="${yBase}" stroke="#444" stroke-dasharray="3"/>`;
-                svg.innerHTML += `<line x1="${riseStartX}" y1="${yBase-25}" x2="${riseStartX}" y2="${yBase}" stroke="#444" stroke-dasharray="3"/>`;
+                drawArrow(svg, startX, rStart, yBase - 15, `${rail.delay}ms`, arrowColor);
+                svg.innerHTML += `<line x1="${startX}" y1="${railPos[rail.parent].y}" x2="${startX}" y2="${yBase}" stroke="${isBW?'#999':'#444'}" stroke-dasharray="3"/>`;
+                svg.innerHTML += `<line x1="${rStart}" y1="${yBase-25}" x2="${rStart}" y2="${yBase}" stroke="${isBW?'#999':'#444'}" stroke-dasharray="3"/>`;
             }
 
-            // Draw Signal
-            const pathData = `M ${X_OFF},${yBase} L ${riseStartX},${yBase} L ${riseEndX},${yHigh} L 1800,${yHigh}`;
+            // Signal Line
+            const strokeColor = isBW ? "#000000" : rail.color;
+            const pathData = `M ${X_OFF},${yBase} L ${rStart},${yBase} L ${rEnd},${yHigh} L 1800,${yHigh}`;
             svg.innerHTML += `
-                <text x="10" y="${yBase - 5}" fill="${rail.color}" font-size="12" font-weight="bold">${rail.name}</text>
-                <path d="${pathData}" fill="none" stroke="${rail.color}" stroke-width="2.5" stroke-linejoin="round"/>
+                <text x="10" y="${yBase - 5}" fill="${strokeColor}" font-size="12" font-weight="bold">${rail.name}</text>
+                <path d="${pathData}" fill="none" stroke="${strokeColor}" stroke-width="${isBW?2:2.5}" />
             `;
         });
     }
 
-    function drawArrow(svg, x1, x2, y, text) {
-        const color = "#ffea00";
+    function drawArrow(svg, x1, x2, y, text, color) {
         svg.innerHTML += `
             <line x1="${x1}" y1="${y}" x2="${x2}" y2="${y}" stroke="${color}" stroke-width="1"/>
             <path d="M ${x1+4} ${y-3} L ${x1} ${y} L ${x1+4} ${y+3}" fill="none" stroke="${color}"/>
             <path d="M ${x2-4} ${y-3} L ${x2} ${y} L ${x2-4} ${y+3}" fill="none" stroke="${color}"/>
-            <text x="${(x1+x2)/2}" y="${y-5}" fill="${color}" font-size="10" text-anchor="middle">${text}</text>
+            <text x="${(x1+x2)/2}" y="${y-5}" fill="${color}" font-size="10" text-anchor="middle" font-family="monospace">${text}</text>
         `;
     }
 
     function exportSVG() {
-        const svgData = document.getElementById('visualizer').outerHTML;
-        const blob = new Blob([svgData], {type: 'image/svg+xml;charset=utf-8'});
-        const url = URL.createObjectURL(blob);
+        const svg = document.getElementById('visualizer');
+        const serializer = new XMLSerializer();
+        let source = serializer.serializeToString(svg);
+        if(!source.match(/^<svg[^>]+xmlns="http\:\/\/www\.w3\.org\/2000\/svg"/)){
+            source = source.replace(/^<svg/, '<svg xmlns="http://www.w3.org/2000/svg"');
+        }
+        const blob = new Blob([source], {type: 'image/svg+xml;charset=utf-8'});
         const link = document.createElement('a');
-        link.href = url;
+        link.href = URL.createObjectURL(blob);
         link.download = 'power_sequence.svg';
         link.click();
     }
 
-    updateUI(); // Bootstrap
+    updateUI();
 </script>
 
 </body>
