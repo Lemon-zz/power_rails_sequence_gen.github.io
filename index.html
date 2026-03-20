@@ -2,114 +2,115 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Power-Up Sequence Constructor</title>
+    <title>Live Power Sequence Renderer</title>
     <style>
-        :root { --bg: #1e1e1e; --panel: #2d2d2d; --text: #e0e0e0; --accent: #4a9eff; }
-        body { font-family: 'Segoe UI', monospace; background: var(--bg); color: var(--text); padding: 20px; }
-        .container { max-width: 900px; margin: 0 auto; background: var(--panel); padding: 25px; border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
-        h2 { border-bottom: 2px solid var(--accent); padding-bottom: 10px; margin-top: 0; }
-        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
-        th { text-align: left; color: var(--accent); font-size: 0.8em; text-transform: uppercase; }
-        input { background: #3d3d3d; border: 1px solid #555; color: white; padding: 8px; border-radius: 4px; width: 90%; }
-        button { background: var(--accent); color: white; border: none; padding: 12px 20px; border-radius: 4px; cursor: pointer; font-weight: bold; transition: 0.2s; }
-        button:hover { opacity: 0.8; }
-        #output { width: 100%; height: 120px; margin-top: 20px; background: #111; color: #0f0; font-family: monospace; font-size: 12px; padding: 10px; border: 1px solid #444; }
-        .hint { font-size: 0.85em; color: #888; margin-top: 10px; }
+        body { font-family: 'Courier New', monospace; background: #121212; color: #00ff41; padding: 20px; }
+        .editor { display: flex; gap: 20px; }
+        .controls { width: 350px; background: #1e1e1e; padding: 15px; border-radius: 8px; border: 1px solid #333; }
+        .viewer { flex-grow: 1; background: #000; border-radius: 8px; border: 1px solid #333; overflow-x: auto; padding: 20px; }
+        .rail-input { margin-bottom: 15px; border-left: 3px solid #4a9eff; padding-left: 10px; }
+        input { background: #2d2d2d; border: 1px solid #444; color: #fff; padding: 5px; width: 60px; margin-bottom: 5px; }
+        input.name { width: 120px; color: #4a9eff; font-weight: bold; }
+        label { font-size: 12px; color: #888; display: inline-block; width: 80px; }
+        svg { background: #080808; border-left: 1px dashed #444; }
+        .grid-line { stroke: #222; stroke-width: 1; }
+        .rail-line { fill: none; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+        .rail-label { fill: #888; font-size: 12px; }
     </style>
 </head>
 <body>
 
-<div class="container">
-    <h2>Power-Up Sequence Constructor</h2>
-    <p>Define your rails and timing. Then paste the XML into Draw.io (Extras > Edit Diagram).</p>
-    
-    <table id="railTable">
-        <thead>
-            <tr>
-                <th>Rail Name</th>
-                <th>Delay (ms)</th>
-                <th>Rise Time (ms)</th>
-                <th>Color (Hex)</th>
-            </tr>
-        </thead>
-        <tbody>
-            <tr>
-                <td><input type="text" value="Vin (12V)" class="r-name"></td>
-                <td><input type="number" value="0" class="r-delay"></td>
-                <td><input type="number" value="5" class="r-rise"></td>
-                <td><input type="text" value="#dae8fe" class="r-color"></td>
-            </tr>
-            <tr>
-                <td><input type="text" value="3V3" class="r-name"></td>
-                <td><input type="number" value="20" class="r-delay"></td>
-                <td><input type="number" value="10" class="r-rise"></td>
-                <td><input type="text" value="#d5e8d4" class="r-color"></td>
-            </tr>
-        </tbody>
-    </table>
+<h2>[ LIVE_POWER_SEQ_CONSTRUCTOR ]</h2>
 
-    <button onclick="addRow()">+ Add Rail</button>
-    <button onclick="generateXML()" style="background: #28a745;">Generate Draw.io XML</button>
+<div class="editor">
+    <div class="controls" id="controlPanel">
+        <div id="inputs">
+            <div class="rail-input">
+                <input type="text" value="12V_VIN" class="name" oninput="render()"><br>
+                <label>Delay (ms)</label><input type="number" value="0" class="delay" oninput="render()"><br>
+                <label>Rise (ms)</label><input type="number" value="5" class="rise" oninput="render()">
+            </div>
+            <div class="rail-input">
+                <input type="text" value="3V3_SYS" class="name" oninput="render()"><br>
+                <label>Delay (ms)</label><input type="number" value="20" class="delay" oninput="render()"><br>
+                <label>Rise (ms)</label><input type="number" value="10" class="rise" oninput="render()">
+            </div>
+        </div>
+        <button onclick="addRail()" style="width:100%; padding:10px; cursor:pointer;">+ ADD RAIL</button>
+    </div>
 
-    <textarea id="output" readonly placeholder="XML will appear here..."></textarea>
-    <div class="hint">Copy the code above. In Draw.io, go to <b>Extras → Edit Diagram</b>, delete everything, paste this, and click <b>OK</b>.</div>
+    <div class="viewer">
+        <svg id="svgRender" width="1000" height="500">
+            </svg>
+    </div>
 </div>
 
 <script>
-    function addRow() {
-        const tbody = document.querySelector('#railTable tbody');
-        const row = tbody.insertRow();
-        row.innerHTML = `
-            <td><input type="text" value="New Rail" class="r-name"></td>
-            <td><input type="number" value="10" class="r-delay"></td>
-            <td><input type="number" value="5" class="r-rise"></td>
-            <td><input type="text" value="#f8cecc" class="r-color"></td>
+    function addRail() {
+        const div = document.createElement('div');
+        div.className = 'rail-input';
+        div.innerHTML = `
+            <input type="text" value="NEW_RAIL" class="name" oninput="render()"><br>
+            <label>Delay (ms)</label><input type="number" value="10" class="delay" oninput="render()"><br>
+            <label>Rise (ms)</label><input type="number" value="5" class="rise" oninput="render()">
         `;
+        document.getElementById('inputs').appendChild(div);
+        render();
     }
 
-    function generateXML() {
-        const names = document.querySelectorAll('.r-name');
-        const delays = document.querySelectorAll('.r-delay');
-        const rises = document.querySelectorAll('.r-rise');
-        const colors = document.querySelectorAll('.r-color');
-
-        let xml = `<mxGraphModel><root><mxCell id="0"/><mxCell id="1" parent="0"/>`;
+    function render() {
+        const svg = document.getElementById('svgRender');
+        svg.innerHTML = ''; // Clear previous
         
-        const SCALE = 5; // 1ms = 5 pixels
-        let currentTimeX = 100; // Starting X offset for labels
-        const Y_STEP = 60;
-        const BAR_HEIGHT = 30;
+        const names = document.querySelectorAll('.name');
+        const delays = document.querySelectorAll('.delay');
+        const rises = document.querySelectorAll('.rise');
+        
+        const SCALE_X = 5; // 1ms = 5px
+        const LANE_HEIGHT = 60;
+        const SIGNAL_HEIGHT = 30;
+        let cumulativeTime = 20; // Initial margin
+
+        // Draw vertical grid lines every 50ms
+        for(let g = 0; g < 1000; g += 50) {
+            let x = g * SCALE_X + 100;
+            svg.innerHTML += `<line x1="${x}" y1="0" x2="${x}" y2="500" class="grid-line" />`;
+            svg.innerHTML += `<text x="${x}" y="15" fill="#333" font-size="10">${g}ms</text>`;
+        }
 
         names.forEach((n, i) => {
-            const railName = n.value;
-            const d = parseFloat(delays[i].value) * SCALE;
-            const r = parseFloat(rises[i].value) * SCALE;
-            const color = colors[i].value;
-            const y = i * Y_STEP + 50;
-
-            // Update global time offset based on delay
-            currentTimeX += d;
-
-            // 1. Label
-            xml += `<mxCell id="l_${i}" value="${railName}" style="text;html=1;align=right;verticalAlign=middle;fontColor=#ffffff;" vertex="1" parent="1">
-                        <mxGeometry x="0" y="${y}" width="80" height="${BAR_HEIGHT}" as="geometry"/>
-                    </mxCell>`;
-
-            // 2. The Rising Edge (Trapezoid/Polygon)
-            // We use a custom shape to show the ramp up
-            xml += `<mxCell id="b_${i}" value="" style="shape=parallelogram;perimeter=parallelogramPerimeter;whiteSpace=wrap;html=1;fixedSize=1;fillColor=${color};strokeColor=none;rotation=0;" vertex="1" parent="1">
-                        <mxGeometry x="${currentTimeX}" y="${y}" width="${r + 150}" height="${BAR_HEIGHT}" as="geometry"/>
-                    </mxCell>`;
+            const d = parseFloat(delays[i].value) || 0;
+            const r = parseFloat(rises[i].value) || 0;
+            const yBase = (i + 1) * LANE_HEIGHT;
+            const yHigh = yBase - SIGNAL_HEIGHT;
             
-            // Increment the start time for the next rail to simulate sequential dependencies
-            currentTimeX += r; 
+            cumulativeTime += d;
+            
+            const startX = 100; // Start of the timeline
+            const riseStartX = startX + (cumulativeTime * SCALE_X);
+            const riseEndX = riseStartX + (r * SCALE_X);
+            const fullEndX = 950;
+
+            // Define the signal path: Low -> Ramp Up -> High
+            const pathData = `
+                M ${startX},${yBase} 
+                L ${riseStartX},${yBase} 
+                L ${riseEndX},${yHigh} 
+                L ${fullEndX},${yHigh}
+            `;
+
+            // Draw the line
+            const color = `hsl(${(i * 40) % 360}, 70%, 60%)`;
+            svg.innerHTML += `
+                <text x="10" y="${yBase - 10}" class="rail-label">${n.value}</text>
+                <path d="${pathData}" class="rail-line" stroke="${color}" />
+            `;
+
+            cumulativeTime += r; // Sequence next rail after this one rises
         });
-
-        xml += `</root></mxGraphModel>`;
-        document.getElementById('output').value = xml;
     }
-</script>
 
+    render(); // Initial call
+</script>
 </body>
 </html>
