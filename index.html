@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Power-Up Designer v3.6</title>
+    <title>Power-Up Designer v3.7</title>
     <style>
         :root { --bg: #121212; --panel: #1e1e1e; --accent: #00e676; --text: #cfd8dc; --break: #ff9800; }
         body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); margin: 0; display: flex; height: 100vh; overflow: hidden; }
@@ -125,7 +125,7 @@
                 const start = anchorX + (item.delay * SCALE);
                 const end = start + (item.rise * SCALE);
                 
-                railGeometries[item.id] = { y, start, end, name: item.name, color: isBW ? "#000" : item.color, anchorX, delay: item.delay };
+                railGeometries[item.id] = { y, start, end, name: item.name, color: isBW ? "#000" : item.color, anchorX, delay: item.delay, parentId: item.parentId };
                 globalTimelineX = end;
                 railIndex++;
             }
@@ -134,29 +134,33 @@
         const totalHeight = (railIndex + 1) * LANE_H + 50;
         svg.setAttribute('height', totalHeight);
 
-        // 1. Draw Sequential Global Markers (T0, T1, T2...)
-        Object.values(railGeometries).forEach((g, i) => {
-            drawGlobalMarker(svg, g.start, totalHeight, `T${i}`, colors.marker, colors.markerText);
-        });
+        // 1. Global Markers
+        Object.values(railGeometries).forEach((g, i) => drawGlobalMarker(svg, g.start, totalHeight, `T${i}`, colors.marker, colors.markerText));
 
-        // 2. Draw Traces
+        // 2. Traces & Parent Links
         Object.values(railGeometries).forEach(g => {
+            // Trace
             const path = `M ${X_OFF},${g.y} L ${g.start},${g.y} L ${g.end},${g.y-40} L 2800,${g.y-40}`;
             svg.innerHTML += `<path d="${path}" fill="none" stroke="${g.color}" stroke-width="3" stroke-linecap="round" />`;
             svg.innerHTML += `<text x="15" y="${g.y-10}" fill="${g.color}" font-size="14" font-weight="bold">${g.name}</text>`;
+            
+            // Parent Line: Dashed vertical from Parent End to Child Anchor (Arrow Start)
+            if (g.parentId !== 'none' && railGeometries[g.parentId]) {
+                const parent = railGeometries[g.parentId];
+                svg.innerHTML += `<line x1="${g.anchorX}" y1="${parent.y - 40}" x2="${g.anchorX}" y2="${g.y - 15}" stroke="${colors.arrow}" stroke-width="1" stroke-dasharray="3,3" opacity="0.6" />`;
+            }
+
             if (g.delay > 0) drawArrow(svg, g.anchorX, g.start, g.y-15, `${g.delay}ms`, colors.arrow);
         });
 
-        // 3. Draw Breaks on Top (Masking)
+        // 3. Breaks
         breakList.forEach(b => drawCurvyBreak(svg, b.x, b.width, b.ms, totalHeight, colors.text, colors.bg));
     }
 
     function drawGlobalMarker(svg, x, h, label, col, txtCol) {
         svg.innerHTML += `<line x1="${x}" y1="40" x2="${x}" y2="${h - 20}" stroke="${col}" stroke-width="1" stroke-dasharray="4,4" />`;
-        // Top Label with background shield
-        svg.innerHTML += `<text x="${x}" y="30" fill="${txtCol}" font-size="11" font-weight="bold" font-family="monospace" text-anchor="middle">${label}</text>`;
-        // Bottom Label
-        svg.innerHTML += `<text x="${x}" y="${h - 5}" fill="${txtCol}" font-size="11" font-weight="bold" font-family="monospace" text-anchor="middle">${label}</text>`;
+        svg.innerHTML += `<text x="${x}" y="30" fill="${txtCol}" font-size="11" font-weight="bold" text-anchor="middle">${label}</text>`;
+        svg.innerHTML += `<text x="${x}" y="${h - 5}" fill="${txtCol}" font-size="11" font-weight="bold" text-anchor="middle">${label}</text>`;
     }
 
     function drawCurvyBreak(svg, x, width, ms, height, color, bg) {
